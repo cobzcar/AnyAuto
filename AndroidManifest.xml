@@ -19,6 +19,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- the widgets that can be put in the car (Poweramp's, see Widgets.java) -->
+        <intent>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent>
         <package android:name="moe.shizuku.privileged.api" />
         <!-- "Open UnknownAuto" when it is installed (install-for-the-car guidance) -->
         <package android:name="com.mag.unknownauto" />
@@ -71,6 +75,19 @@
         <activity
             android:name=".HelpActivity"
             android:exported="false" />
+
+        <!-- the Poweramp widget for the car: chosen and allowed on the phone (WidgetSetupActivity),
+             shown on the car display (WidgetActivity). Exported because the shell user starts
+             it on the virtual display, as it starts any other app. -->
+        <activity
+            android:name=".WidgetSetupActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+        <activity
+            android:name=".WidgetActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
         <!-- the car screen simulated on the phone: same display, launch and gesture path as the car -->
         <activity

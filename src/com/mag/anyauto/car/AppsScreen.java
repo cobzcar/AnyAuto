@@ -1,7 +1,10 @@
 package com.mag.anyauto.car;
 
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
 
 import androidx.annotation.NonNull;
 import androidx.car.app.CarContext;
@@ -21,6 +24,7 @@ import androidx.lifecycle.LifecycleOwner;
 import com.mag.anyauto.Apps;
 import com.mag.anyauto.Mirror;
 import com.mag.anyauto.Prefs;
+import com.mag.anyauto.Widgets;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -69,7 +73,9 @@ final class AppsScreen extends Screen {
             }
             apps = pinned;
         }
-        if (apps.isEmpty()) {
+        ComponentName open = mirror.currentApp();
+        GridItem widget = widgetTile(c, open);
+        if (apps.isEmpty() && widget == null) {
             return new MessageTemplate.Builder(
                     "No apps chosen yet.\nOpen AnyAuto on the phone and tick the apps for the car.")
                     .setTitle("AnyAuto")
@@ -77,12 +83,13 @@ final class AppsScreen extends Screen {
                     .setIcon(CarIcon.APP_ICON)
                     .build();
         }
-        ComponentName open = mirror.currentApp();
         int limit = c.getCarService(ConstraintManager.class)
                 .getContentLimit(ConstraintManager.CONTENT_LIMIT_TYPE_GRID);
         PackageManager pm = c.getPackageManager();
         ItemList.Builder list = new ItemList.Builder();
-        for (int i = 0; i < Math.min(limit, apps.size()); i++) {
+        // the widget chosen on the phone comes first and takes one place of the grid's limit
+        if (widget != null) list.addItem(widget);
+        for (int i = 0; i < Math.min(limit - (widget != null ? 1 : 0), apps.size()); i++) {
             Apps.App a = apps.get(i);
             CarIcon icon = new CarIcon.Builder(IconCompat.createWithBitmap(Apps.bitmap(a.icon(pm), ICON_PX))).build();
             GridItem.Builder item = new GridItem.Builder()
@@ -101,5 +108,31 @@ final class AppsScreen extends Screen {
                 .setHeaderAction(open != null ? Action.BACK : Action.APP_ICON)
                 .setSingleList(list.build())
                 .build();
+    }
+
+    /** The tile of the widget chosen on the phone (Poweramp's), or null when there is none. */
+    private GridItem widgetTile(CarContext c, ComponentName open) {
+        int id = Prefs.widgetId(c);
+        if (id == -1) return null;
+        try {
+            AppWidgetProviderInfo info = AppWidgetManager.getInstance(c).getAppWidgetInfo(id);
+            if (info == null) return null; // the widget is gone (Poweramp uninstalled, say)
+            Drawable d = info.loadIcon(c, c.getResources().getDisplayMetrics().densityDpi);
+            if (d == null) return null;
+            ComponentName target = Widgets.component(c);
+            CarIcon icon = new CarIcon.Builder(IconCompat.createWithBitmap(Apps.bitmap(d, ICON_PX))).build();
+            GridItem.Builder item = new GridItem.Builder()
+                    .setTitle(Prefs.widgetLabel(c))
+                    .setImage(icon, GridItem.IMAGE_TYPE_LARGE)
+                    .setOnClickListener(() -> {
+                        Prefs.setLast(c, target);
+                        mirror.open(target);
+                        getScreenManager().pop();
+                    });
+            if (target.equals(open)) item.setText("Open");
+            return item.build();
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 }

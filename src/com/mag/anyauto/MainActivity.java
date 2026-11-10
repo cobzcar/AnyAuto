@@ -38,7 +38,7 @@ public final class MainActivity extends Activity implements Shell.Listener {
     static final String UNKNOWNAUTO = "com.mag.unknownauto";
     static final String UNKNOWNAUTO_RELEASES = "https://github.com/GitMag/UnknownAuto/releases/latest";
     private static final int MENU_HELP = 1, MENU_INSTALL = 2, MENU_KEYBOARD = 3, MENU_FULL = 4, MENU_PHONE_ON = 5,
-            MENU_YOUTUBE = 6;
+            MENU_YOUTUBE = 6, MENU_WIDGET = 7;
 
     private LinearLayout cards;
     private TextView section, sectionCount;
@@ -146,9 +146,10 @@ public final class MainActivity extends Activity implements Shell.Listener {
                 .setChecked(Prefs.keepPhoneOn(this));
         menu.add(0, MENU_YOUTUBE, 2, "YouTube shortcut in the car").setCheckable(true)
                 .setChecked(Prefs.youtubeShortcut(this));
-        menu.add(0, MENU_KEYBOARD, 3, "Keyboard");
-        menu.add(0, MENU_HELP, 4, "Help");
-        menu.add(0, MENU_INSTALL, 5, "Install for the car");
+        menu.add(0, MENU_WIDGET, 3, "Poweramp widget");
+        menu.add(0, MENU_KEYBOARD, 4, "Keyboard");
+        menu.add(0, MENU_HELP, 5, "Help");
+        menu.add(0, MENU_INSTALL, 6, "Install for the car");
         return true;
     }
 
@@ -172,6 +173,10 @@ public final class MainActivity extends Activity implements Shell.Listener {
             boolean on = !item.isChecked();
             item.setChecked(on);
             Prefs.setYoutubeShortcut(this, on);
+            return true;
+        }
+        if (item.getItemId() == MENU_WIDGET) {
+            startActivity(new Intent(this, WidgetSetupActivity.class));
             return true;
         }
         if (item.getItemId() == MENU_KEYBOARD) {

@@ -94,6 +94,10 @@ Android Auto dashboard: the app is drawn into the dashboard card.
 grid, whether or not you ticked it in *Choose apps*. Turn it off with ⋮ → **YouTube shortcut in
 the car**.
 
+**Poweramp widget:** ⋮ → **Poweramp widget** lists Poweramp's widgets. Pick one and allow AnyAuto
+to hold it (Android asks once). The widget then comes first in the car's apps grid and fills the
+car screen, with its buttons working by touch.
+
 **Full screen:** the app uses the whole car screen, edge to edge, like Google Maps does (Android
 Auto rounds the corners a little). The buttons float over its top corner until they hide by
 themselves. To keep them out of the app's way, turn off ⋮ → **Full screen in

@@ -15,6 +15,7 @@ import com.mag.anyauto.Apps;
 import com.mag.anyauto.Mirror;
 import com.mag.anyauto.Prefs;
 import com.mag.anyauto.Shell;
+import com.mag.anyauto.Widgets;
 
 /**
  * One car session, one virtual display for its whole life. The root screen is the mirror; the
@@ -40,7 +41,7 @@ public final class AnySession extends Session {
             }
         });
         ComponentName last = Prefs.last(c);
-        if (last != null && Apps.find(c, last) != null) {
+        if (last != null && (Apps.find(c, last) != null || Widgets.isWidget(c, last))) {
             mirror.open(last);
             return screen;
         }

@@ -17,6 +17,8 @@ public final class Prefs {
     private static final String FULL_SCREEN = "full_screen";
     private static final String KEEP_PHONE_ON = "keep_phone_on";
     private static final String YOUTUBE_SHORTCUT = "youtube_shortcut";
+    private static final String WIDGET_ID = "widget_id";
+    private static final String WIDGET_LABEL = "widget_label";
 
     private Prefs() {
     }
@@ -112,5 +114,19 @@ public final class Prefs {
 
     public static void setYoutubeShortcut(Context c, boolean on) {
         p(c).edit().putBoolean(YOUTUBE_SHORTCUT, on).apply();
+    }
+
+    /** The id of the widget chosen for the car (Widgets), or -1 when there is none. */
+    public static int widgetId(Context c) {
+        return p(c).getInt(WIDGET_ID, -1);
+    }
+
+    /** The widget's name, for its tile in the car's apps grid. */
+    public static String widgetLabel(Context c) {
+        return p(c).getString(WIDGET_LABEL, "Widget");
+    }
+
+    static void setWidget(Context c, int id, String label) {
+        p(c).edit().putInt(WIDGET_ID, id).putString(WIDGET_LABEL, label).apply();
     }
 }
