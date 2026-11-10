@@ -17,6 +17,8 @@ import java.util.Set;
 
 /** The phone's apps with a launcher icon (the manifest's queries element makes them visible). */
 public final class Apps {
+    static final String YOUTUBE_PACKAGE = "com.google.android.youtube";
+
     public static final class App {
         public final ComponentName component;
         public final String label;
@@ -59,6 +61,14 @@ public final class Apps {
             if (want.contains(a.component.flattenToString())) out.add(a);
         }
         return out;
+    }
+
+    /** The YouTube app, or null when it isn't installed (or has no launcher icon). */
+    public static App youtube(Context c) {
+        for (App a : launchable(c)) {
+            if (YOUTUBE_PACKAGE.equals(a.component.getPackageName())) return a;
+        }
+        return null;
     }
 
     public static App find(Context c, ComponentName cn) {

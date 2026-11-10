@@ -16,6 +16,7 @@ public final class Prefs {
     private static final String KEYBOARD_ON_CAR = "keyboard_on_car";
     private static final String FULL_SCREEN = "full_screen";
     private static final String KEEP_PHONE_ON = "keep_phone_on";
+    private static final String YOUTUBE_SHORTCUT = "youtube_shortcut";
 
     private Prefs() {
     }
@@ -102,5 +103,14 @@ public final class Prefs {
 
     public static void setKeepPhoneOn(Context c, boolean on) {
         p(c).edit().putBoolean(KEEP_PHONE_ON, on).apply();
+    }
+
+    /** A YouTube tile stays first in the car's apps grid, ticked or not (default on). */
+    public static boolean youtubeShortcut(Context c) {
+        return p(c).getBoolean(YOUTUBE_SHORTCUT, true);
+    }
+
+    public static void setYoutubeShortcut(Context c, boolean on) {
+        p(c).edit().putBoolean(YOUTUBE_SHORTCUT, on).apply();
     }
 }

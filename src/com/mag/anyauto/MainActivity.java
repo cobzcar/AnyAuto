@@ -37,7 +37,8 @@ import java.util.List;
 public final class MainActivity extends Activity implements Shell.Listener {
     static final String UNKNOWNAUTO = "com.mag.unknownauto";
     static final String UNKNOWNAUTO_RELEASES = "https://github.com/GitMag/UnknownAuto/releases/latest";
-    private static final int MENU_HELP = 1, MENU_INSTALL = 2, MENU_KEYBOARD = 3, MENU_FULL = 4, MENU_PHONE_ON = 5;
+    private static final int MENU_HELP = 1, MENU_INSTALL = 2, MENU_KEYBOARD = 3, MENU_FULL = 4, MENU_PHONE_ON = 5,
+            MENU_YOUTUBE = 6;
 
     private LinearLayout cards;
     private TextView section, sectionCount;
@@ -143,9 +144,11 @@ public final class MainActivity extends Activity implements Shell.Listener {
                 .setChecked(Prefs.fullScreen(this));
         menu.add(0, MENU_PHONE_ON, 1, "Keep the phone's screen on").setCheckable(true)
                 .setChecked(Prefs.keepPhoneOn(this));
-        menu.add(0, MENU_KEYBOARD, 2, "Keyboard");
-        menu.add(0, MENU_HELP, 3, "Help");
-        menu.add(0, MENU_INSTALL, 4, "Install for the car");
+        menu.add(0, MENU_YOUTUBE, 2, "YouTube shortcut in the car").setCheckable(true)
+                .setChecked(Prefs.youtubeShortcut(this));
+        menu.add(0, MENU_KEYBOARD, 3, "Keyboard");
+        menu.add(0, MENU_HELP, 4, "Help");
+        menu.add(0, MENU_INSTALL, 5, "Install for the car");
         return true;
     }
 
@@ -163,6 +166,12 @@ public final class MainActivity extends Activity implements Shell.Listener {
             item.setChecked(on);
             Prefs.setKeepPhoneOn(this, on);
             Mirror.settingsChanged();
+            return true;
+        }
+        if (item.getItemId() == MENU_YOUTUBE) {
+            boolean on = !item.isChecked();
+            item.setChecked(on);
+            Prefs.setYoutubeShortcut(this, on);
             return true;
         }
         if (item.getItemId() == MENU_KEYBOARD) {

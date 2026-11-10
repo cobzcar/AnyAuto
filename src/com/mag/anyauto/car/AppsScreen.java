@@ -22,6 +22,7 @@ import com.mag.anyauto.Apps;
 import com.mag.anyauto.Mirror;
 import com.mag.anyauto.Prefs;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -58,6 +59,16 @@ final class AppsScreen extends Screen {
     public Template onGetTemplate() {
         CarContext c = getCarContext();
         List<Apps.App> apps = Apps.chosen(c);
+        // the YouTube shortcut: first in the grid, even when YouTube isn't ticked on the phone
+        Apps.App youtube = Prefs.youtubeShortcut(c) ? Apps.youtube(c) : null;
+        if (youtube != null) {
+            List<Apps.App> pinned = new ArrayList<>();
+            pinned.add(youtube);
+            for (Apps.App a : apps) {
+                if (!a.component.equals(youtube.component)) pinned.add(a);
+            }
+            apps = pinned;
+        }
         if (apps.isEmpty()) {
             return new MessageTemplate.Builder(
                     "No apps chosen yet.\nOpen AnyAuto on the phone and tick the apps for the car.")
