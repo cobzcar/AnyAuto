@@ -75,7 +75,8 @@ final class AppsScreen extends Screen {
         }
         ComponentName open = mirror.currentApp();
         GridItem widget = widgetTile(c, open);
-        if (apps.isEmpty() && widget == null) {
+        GridItem dash = dashboardTile(c, open);
+        if (apps.isEmpty() && widget == null && dash == null) {
             return new MessageTemplate.Builder(
                     "No apps chosen yet.\nOpen AnyAuto on the phone and tick the apps for the car.")
                     .setTitle("AnyAuto")
@@ -87,9 +88,18 @@ final class AppsScreen extends Screen {
                 .getContentLimit(ConstraintManager.CONTENT_LIMIT_TYPE_GRID);
         PackageManager pm = c.getPackageManager();
         ItemList.Builder list = new ItemList.Builder();
-        // the widget chosen on the phone comes first and takes one place of the grid's limit
-        if (widget != null) list.addItem(widget);
-        for (int i = 0; i < Math.min(limit - (widget != null ? 1 : 0), apps.size()); i++) {
+        // the dashboard and the widget chosen on the phone come first, each taking one place of the
+        // grid's limit
+        int pinned = 0;
+        if (dash != null) {
+            list.addItem(dash);
+            pinned++;
+        }
+        if (widget != null) {
+            list.addItem(widget);
+            pinned++;
+        }
+        for (int i = 0; i < Math.min(limit - pinned, apps.size()); i++) {
             Apps.App a = apps.get(i);
             CarIcon icon = new CarIcon.Builder(IconCompat.createWithBitmap(Apps.bitmap(a.icon(pm), ICON_PX))).build();
             GridItem.Builder item = new GridItem.Builder()
@@ -132,6 +142,29 @@ final class AppsScreen extends Screen {
             if (target.equals(open)) item.setText("Open");
             return item.build();
         } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The dashboard's tile (weather, Poweramp, navigation, clock, two cards), once it is set up on the phone. */
+    private GridItem dashboardTile(CarContext c, ComponentName open) {
+        if (!Prefs.hasDashboard(c)) return null;
+        try {
+            PackageManager pm = c.getPackageManager();
+            Drawable d = pm.getApplicationIcon(c.getPackageName());
+            ComponentName target = Widgets.dashboard(c);
+            CarIcon icon = new CarIcon.Builder(IconCompat.createWithBitmap(Apps.bitmap(d, ICON_PX))).build();
+            GridItem.Builder item = new GridItem.Builder()
+                    .setTitle("Dashboard")
+                    .setImage(icon, GridItem.IMAGE_TYPE_LARGE)
+                    .setOnClickListener(() -> {
+                        Prefs.setLast(c, target);
+                        mirror.open(target);
+                        getScreenManager().pop();
+                    });
+            if (target.equals(open)) item.setText("Open");
+            return item.build();
+        } catch (RuntimeException | PackageManager.NameNotFoundException e) {
             return null;
         }
     }

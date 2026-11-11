@@ -98,6 +98,13 @@ the car**.
 to hold it (Android asks once). The widget then comes first in the car's apps grid and fills the
 car screen, with its buttons working by touch.
 
+**Dashboard:** ⋮ → **Dashboard** sets up a dashboard for the car, with three columns: the weather
+widget over the Poweramp widget on the left, a wide navigation tile (Google Maps, Waze or the app you
+choose) in the middle, and the clock over two cards on the right. Each card has a picture and the app
+it starts. Pick the weather widget from every widget on the phone. Once something is set up, a
+**Dashboard** tile comes first in the car's apps grid. A tile starts its app on the car screen, and
+the car's Back returns to the dashboard.
+
 **Full screen:** the app uses the whole car screen, edge to edge, like Google Maps does (Android
 Auto rounds the corners a little). The buttons float over its top corner until they hide by
 themselves. To keep them out of the app's way, turn off ⋮ → **Full screen in

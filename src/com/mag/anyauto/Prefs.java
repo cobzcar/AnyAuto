@@ -17,8 +17,6 @@ public final class Prefs {
     private static final String FULL_SCREEN = "full_screen";
     private static final String KEEP_PHONE_ON = "keep_phone_on";
     private static final String YOUTUBE_SHORTCUT = "youtube_shortcut";
-    private static final String WIDGET_ID = "widget_id";
-    private static final String WIDGET_LABEL = "widget_label";
 
     private Prefs() {
     }
@@ -116,17 +114,47 @@ public final class Prefs {
         p(c).edit().putBoolean(YOUTUBE_SHORTCUT, on).apply();
     }
 
-    /** The id of the widget chosen for the car (Widgets), or -1 when there is none. */
+    /** The id of the Poweramp widget chosen for the car (Widgets), or -1 when there is none. */
     public static int widgetId(Context c) {
-        return p(c).getInt(WIDGET_ID, -1);
+        return widgetId(c, Widgets.MUSIC);
     }
 
-    /** The widget's name, for its tile in the car's apps grid. */
+    /** The Poweramp widget's name, for its tile in the car's apps grid. */
     public static String widgetLabel(Context c) {
-        return p(c).getString(WIDGET_LABEL, "Widget");
+        return widgetLabel(c, Widgets.MUSIC);
     }
 
-    static void setWidget(Context c, int id, String label) {
-        p(c).edit().putInt(WIDGET_ID, id).putString(WIDGET_LABEL, label).apply();
+    /** The id of the widget in a slot (Widgets.MUSIC or Widgets.WEATHER), or -1 when there is none. */
+    static int widgetId(Context c, String slot) {
+        return p(c).getInt("widget_" + slot + "_id", -1);
+    }
+
+    static String widgetLabel(Context c, String slot) {
+        return p(c).getString("widget_" + slot + "_label", "Widget");
+    }
+
+    static void setWidget(Context c, String slot, int id, String label) {
+        p(c).edit().putInt("widget_" + slot + "_id", id).putString("widget_" + slot + "_label", label).apply();
+    }
+
+    /** An app of the dashboard: its navigation tile (Dash.MAP) or one of its cards ("card1", "card2"). */
+    static ComponentName dashApp(Context c, String key) {
+        String f = p(c).getString("dash_" + key + "_app", null);
+        return f == null ? null : ComponentName.unflattenFromString(f);
+    }
+
+    /** Sets the app of a dashboard tile; null clears it. */
+    static void setDashApp(Context c, String key, ComponentName cn) {
+        SharedPreferences.Editor e = p(c).edit();
+        if (cn == null) e.remove("dash_" + key + "_app");
+        else e.putString("dash_" + key + "_app", cn.flattenToString());
+        e.apply();
+    }
+
+    /** True once something is set up for the dashboard: its tile then shows in the car's apps. */
+    public static boolean hasDashboard(Context c) {
+        return widgetId(c, Widgets.MUSIC) != -1 || widgetId(c, Widgets.WEATHER) != -1
+                || dashApp(c, Dash.MAP) != null || dashApp(c, "card1") != null || dashApp(c, "card2") != null
+                || Dash.cardImage(c, 1).exists() || Dash.cardImage(c, 2).exists();
     }
 }

@@ -41,7 +41,8 @@ public final class AnySession extends Session {
             }
         });
         ComponentName last = Prefs.last(c);
-        if (last != null && (Apps.find(c, last) != null || Widgets.isWidget(c, last))) {
+        if (last != null && (Apps.find(c, last) != null || Widgets.isWidget(c, last)
+                || Widgets.isDashboard(c, last))) {
             mirror.open(last);
             return screen;
         }

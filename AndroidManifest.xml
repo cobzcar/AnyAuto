@@ -83,9 +83,28 @@
             android:name=".WidgetSetupActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+        <!-- Own task affinity (here and for the dashboard): without it, the shell's start with
+             NEW_TASK would look for AnyAuto's own task and could pull these into the phone's. -->
         <activity
             android:name=".WidgetActivity"
             android:exported="true"
+            android:taskAffinity="com.mag.anyauto.widget"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+
+        <!-- the dashboard for the car (weather, Poweramp, navigation tile, clock, two cards):
+             set up on the phone (DashboardSetupActivity), shown on the car display
+             (DashboardActivity, started by the shell user like the widget above) -->
+        <activity
+            android:name=".DashboardSetupActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+        <activity
+            android:name=".DashboardActivity"
+            android:exported="true"
+            android:taskAffinity="com.mag.anyauto.dashboard"
+            android:excludeFromRecents="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
