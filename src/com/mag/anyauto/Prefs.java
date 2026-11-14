@@ -124,7 +124,7 @@ public final class Prefs {
         return widgetLabel(c, Widgets.MUSIC);
     }
 
-    /** The id of the widget in a slot (Widgets.MUSIC or Widgets.WEATHER), or -1 when there is none. */
+    /** The id of the widget in a slot (Widgets.MUSIC), or -1 when there is none. */
     static int widgetId(Context c, String slot) {
         return p(c).getInt("widget_" + slot + "_id", -1);
     }
@@ -153,7 +153,7 @@ public final class Prefs {
 
     /** True once something is set up for the dashboard: its tile then shows in the car's apps. */
     public static boolean hasDashboard(Context c) {
-        return widgetId(c, Widgets.MUSIC) != -1 || widgetId(c, Widgets.WEATHER) != -1
+        return widgetId(c, Widgets.MUSIC) != -1
                 || dashApp(c, Dash.MAP) != null || dashApp(c, "card1") != null || dashApp(c, "card2") != null
                 || Dash.cardImage(c, 1).exists() || Dash.cardImage(c, 2).exists();
     }

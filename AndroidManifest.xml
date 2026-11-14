@@ -93,7 +93,7 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
-        <!-- the dashboard for the car (weather, Poweramp, navigation tile, clock, two cards):
+        <!-- the dashboard for the car (Poweramp, live map, clock, two cards):
              set up on the phone (DashboardSetupActivity), shown on the car display
              (DashboardActivity, started by the shell user like the widget above) -->
         <activity

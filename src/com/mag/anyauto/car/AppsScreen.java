@@ -146,7 +146,7 @@ final class AppsScreen extends Screen {
         }
     }
 
-    /** The dashboard's tile (weather, Poweramp, navigation, clock, two cards), once it is set up on the phone. */
+    /** The dashboard's tile (Poweramp, live map, clock, two cards), once it is set up on the phone. */
     private GridItem dashboardTile(CarContext c, ComponentName open) {
         if (!Prefs.hasDashboard(c)) return null;
         try {

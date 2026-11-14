@@ -56,4 +56,16 @@ interface IDisplayService {
     // The setting "Keep the phone's screen on" (car only): the phone stays awake with its screen
     // on while the car shows AnyAuto, instead of dark or left alone (DisplayService.applyPhoneMode).
     oneway void phoneScreenOn(boolean on) = 12;
+
+    // The map display (DashboardActivity): a second virtual display that draws into a SurfaceView
+    // of the dashboard, so an app (Google Maps) runs live beside the dashboard's own tiles. Same
+    // contract as show(): creates the display, or keeps it and gives it this surface and size;
+    // surface may be null (the app keeps running, nothing is drawn). Returns the display id, or -1.
+    int showMap(in Surface surface, int width, int height, int dpi) = 13;
+
+    // launch() for the map display.
+    String launchOnMap(in ComponentName component) = 14;
+
+    // touch() for the map display: the event's coordinates are the map display's pixels.
+    oneway void touchMap(in MotionEvent event) = 15;
 }

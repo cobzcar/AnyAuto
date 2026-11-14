@@ -79,6 +79,11 @@ public final class DisplayService extends IDisplayService.Stub {
     private VirtualDisplay display;
     private volatile int displayId = -1;
     private Surface surface;
+    // the map display (showMap): a second virtual display drawing into the dashboard's SurfaceView
+    private VirtualDisplay mapDisplay;
+    private volatile int mapDisplayId = -1;
+    private Surface mapSurface;
+    private int mapW, mapH, mapDpi;
     private int width, height, dpi, flags;
     private volatile String lastError = "";
     private volatile PhonePower phone;
@@ -127,10 +132,10 @@ public final class DisplayService extends IDisplayService.Stub {
         try {
             Surface old = surface;
             if (display == null) {
-                display = create(w, h, d, s);
+                display = create("AnyAuto", w, h, d, s);
                 displayId = display.getDisplay().getDisplayId();
                 Log.i(TAG, "display " + displayId + " " + w + "x" + h + "@" + d + " flags 0x" + Integer.toHexString(flags));
-                keepLandscape();
+                keepLandscape(displayId);
                 applyKeyboard();
                 ownGroup = ownGroup(displayId);
                 Log.i(TAG, "display " + displayId + (ownGroup
@@ -162,7 +167,7 @@ public final class DisplayService extends IDisplayService.Stub {
     }
 
     /** Tries the full flag set first and drops the newer, permission-gated flags one step at a time. */
-    private VirtualDisplay create(int w, int h, int d, Surface s) throws Exception {
+    private VirtualDisplay create(String name, int w, int h, int d, Surface s) throws Exception {
         DisplayManager dm = dm();
         int sdk = Build.VERSION.SDK_INT;
         // no DEVICE_DISPLAY_GROUP (it belongs to virtual devices; we have none)
@@ -177,7 +182,7 @@ public final class DisplayService extends IDisplayService.Stub {
         for (int f : tries) {
             if (f < 0) continue;
             try {
-                VirtualDisplay vd = dm.createVirtualDisplay("AnyAuto", w, h, d, s, f);
+                VirtualDisplay vd = dm.createVirtualDisplay(name, w, h, d, s, f);
                 if (vd != null) {
                     flags = f;
                     return vd;
@@ -234,8 +239,7 @@ public final class DisplayService extends IDisplayService.Stub {
      * card stays portrait. Any one of the three settings was enough on Android 14; each is best
      * effort (all need SET_ORIENTATION, which the shell user has).
      */
-    private void keepLandscape() {
-        int id = displayId;
+    private void keepLandscape(int id) {
         Object wm;
         try {
             wm = windowManager();
@@ -527,13 +531,22 @@ public final class DisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized String launch(ComponentName component) {
-        if (display == null) return "no display";
+        return launchOn(component, displayId);
+    }
+
+    @Override
+    public synchronized String launchOnMap(ComponentName component) {
+        return launchOn(component, mapDisplayId);
+    }
+
+    private String launchOn(ComponentName component, int target) {
+        if (target < 0) return "no display";
         Intent intent = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(component)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
         // an existing task of the app moves to the launch display (checked on Android 17)
-        Bundle options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId).toBundle();
+        Bundle options = ActivityOptions.makeBasic().setLaunchDisplayId(target).toBundle();
         try {
             Object atm = Build.VERSION.SDK_INT >= 29
                     ? Class.forName("android.app.ActivityTaskManager").getMethod("getService").invoke(null)
@@ -571,6 +584,53 @@ public final class DisplayService extends IDisplayService.Stub {
         int id = displayId;
         if (id >= 0) inject(event, id);
         event.recycle();
+    }
+
+    @Override
+    public void touchMap(MotionEvent event) {
+        int id = mapDisplayId;
+        if (id >= 0) inject(event, id);
+        event.recycle();
+    }
+
+    /**
+     * The map display: made on the first surface, then kept. A null surface pauses the drawing
+     * (the dashboard is not on screen) while the app on it keeps running, so a route keeps
+     * guiding. It takes the main display's flags (own display group included), so it behaves the
+     * same way when the phone sleeps.
+     */
+    @Override
+    public synchronized int showMap(Surface s, int w, int h, int d) {
+        try {
+            Surface old = mapSurface;
+            if (mapDisplay == null) {
+                if (s == null) return -1; // nothing to draw into yet
+                int mainFlags = flags; // create() records the flags it got; they belong to the main display
+                mapDisplay = create("AnyAuto map", w, h, d, s);
+                flags = mainFlags;
+                mapDisplayId = mapDisplay.getDisplay().getDisplayId();
+                Log.i(TAG, "map display " + mapDisplayId + " " + w + "x" + h + "@" + d);
+                keepLandscape(mapDisplayId);
+            } else {
+                mapDisplay.setSurface(s);
+                if (w > 0 && h > 0 && d > 0 && (w != mapW || h != mapH || d != mapDpi)) {
+                    mapDisplay.resize(w, h, d);
+                    Log.i(TAG, "map display " + mapDisplayId + " resized to " + w + "x" + h + "@" + d);
+                }
+            }
+            mapSurface = s;
+            if (w > 0 && h > 0 && d > 0) {
+                mapW = w;
+                mapH = h;
+                mapDpi = d;
+            }
+            if (old != null && old != s) old.release();
+            return mapDisplayId;
+        } catch (Throwable t) {
+            lastError = "map display: " + describe(t);
+            Log.w(TAG, lastError, t);
+            return -1;
+        }
     }
 
     @Override
@@ -617,6 +677,14 @@ public final class DisplayService extends IDisplayService.Stub {
             display = null;
         }
         displayId = -1;
+        if (mapDisplay != null) {
+            Log.i(TAG, "map display " + mapDisplayId + " released");
+            mapDisplay.release();
+            mapDisplay = null;
+        }
+        mapDisplayId = -1;
+        if (mapSurface != null) mapSurface.release();
+        mapSurface = null;
         if (surface != null && (reader == null || surface != reader.getSurface())) surface.release();
         surface = null;
         if (reader != null) {

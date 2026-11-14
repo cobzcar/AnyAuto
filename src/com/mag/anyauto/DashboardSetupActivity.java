@@ -22,14 +22,14 @@ import android.widget.Toast;
 import java.util.List;
 
 /**
- * Sets up the dashboard on the phone: the weather and Poweramp widgets, the app behind the
- * navigation tile, and the picture and app of each of the two cards. Everything saves at once;
+ * Sets up the dashboard on the phone: the Poweramp widget, the app that runs live in the middle
+ * (the map), and the picture and app of each of the two cards. Everything saves at once;
  * {@link DashboardActivity} shows it in the car.
  */
 public final class DashboardSetupActivity extends Activity {
     private static final int REQ_IMAGE = 10; // + the card's number
 
-    private TextView weather, music, map, card1, card2;
+    private TextView music, map, card1, card2;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -40,15 +40,14 @@ public final class DashboardSetupActivity extends Activity {
 
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        TextView hint = Ui.text(this, "The dashboard for the car: weather and Poweramp widgets on the left, "
-                + "a navigation tile in the middle, the clock and two cards on the right. "
+        TextView hint = Ui.text(this, "The dashboard for the car: the Poweramp widget on the left, "
+                + "the live map in the middle, the clock and two cards on the right. "
                 + "Open it from the car's apps.", 14, false, Ui.text2(this));
         hint.setPadding(dp(16), dp(16), dp(16), dp(8));
         list.addView(hint);
 
-        weather = row(list, "Weather widget", v -> pickWidget(Widgets.WEATHER));
-        music = row(list, "Poweramp widget", v -> pickWidget(Widgets.MUSIC));
-        map = row(list, "Navigation tile", v -> chooseApp(Dash.MAP, true));
+        music = row(list, "Poweramp widget", v -> pickWidget());
+        map = row(list, "Map (runs live in the middle)", v -> chooseApp(Dash.MAP, true));
         card1 = row(list, "Card 1", v -> cardMenu(1));
         card2 = row(list, "Card 2", v -> cardMenu(2));
 
@@ -103,8 +102,6 @@ public final class DashboardSetupActivity extends Activity {
     }
 
     private void refresh() {
-        weather.setText(Prefs.widgetId(this, Widgets.WEATHER) == -1 ? "Not chosen"
-                : Prefs.widgetLabel(this, Widgets.WEATHER));
         music.setText(Prefs.widgetId(this, Widgets.MUSIC) == -1 ? "Not chosen"
                 : Prefs.widgetLabel(this, Widgets.MUSIC));
         ComponentName m = Dash.mapApp(this);
@@ -129,8 +126,8 @@ public final class DashboardSetupActivity extends Activity {
         }
     }
 
-    private void pickWidget(String slot) {
-        startActivity(new Intent(this, WidgetSetupActivity.class).putExtra(WidgetSetupActivity.EXTRA_SLOT, slot));
+    private void pickWidget() {
+        startActivity(new Intent(this, WidgetSetupActivity.class));
     }
 
     /** A card: its picture, its app, or both removed. */
@@ -166,7 +163,7 @@ public final class DashboardSetupActivity extends Activity {
                 if (automatic) labels[0] = "Automatic (Google Maps, else Waze)";
                 for (int i = 0; i < apps.size(); i++) labels[i + offset] = apps.get(i).label;
                 new AlertDialog.Builder(this)
-                        .setTitle(Dash.MAP.equals(key) ? "Navigation tile" : "Card app")
+                        .setTitle(Dash.MAP.equals(key) ? "Map app" : "Card app")
                         .setItems(labels, (d, which) -> {
                             Prefs.setDashApp(this, key, automatic && which == 0 ? null
                                     : apps.get(which - offset).component);

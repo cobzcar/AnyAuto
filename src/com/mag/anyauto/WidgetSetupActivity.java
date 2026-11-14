@@ -25,17 +25,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Choose a widget for the car, once, on the phone: pick it in the list, allow AnyAuto to hold it
- * (Android asks the first time), and finish the widget's own setup screen if it has one. The
- * widget id is saved in {@link Prefs}, in the slot given by {@link #EXTRA_SLOT}: Poweramp's
- * widget (the default) or the dashboard's weather widget, which can be any widget on the phone.
+ * Choose the Poweramp widget for the car, once, on the phone: pick it in the list, allow AnyAuto
+ * to hold it (Android asks the first time), and finish the widget's own setup screen if it has
+ * one. The widget id is saved in {@link Prefs}; {@link WidgetActivity} and
+ * {@link DashboardActivity} show it in the car.
  */
 public final class WidgetSetupActivity extends Activity {
-    static final String EXTRA_SLOT = "slot";
     private static final int REQ_BIND = 1, REQ_CONFIG = 2;
 
     private AppWidgetHost host;
-    private String slot = Widgets.MUSIC;
     private List<AppWidgetProviderInfo> providers = new ArrayList<>();
     // the widget being set up: allocated, not yet saved
     private int pendingId = -1;
@@ -44,25 +42,18 @@ public final class WidgetSetupActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        if (Widgets.WEATHER.equals(getIntent().getStringExtra(EXTRA_SLOT))) slot = Widgets.WEATHER;
-        boolean weather = Widgets.WEATHER.equals(slot);
-        setTitle(weather ? "Weather widget" : "Poweramp widget");
+        setTitle("Poweramp widget");
         ActionBar ab = getActionBar();
         if (ab != null) ab.setDisplayHomeAsUpEnabled(true);
         host = new AppWidgetHost(this, Widgets.HOST_ID);
-        providers = Widgets.providers(this, slot);
+        providers = Widgets.providers(this);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        String text;
-        if (providers.isEmpty()) {
-            text = weather ? "No widgets found on this phone."
-                    : "No Poweramp widget found.\nInstall Poweramp (and its widgets), then open this screen again.";
-        } else {
-            text = weather ? "Choose the weather widget for the dashboard."
-                    : "Choose the Poweramp widget. It shows in the dashboard and as a tile in the car's apps.";
-        }
-        TextView hint = Ui.text(this, text, 14, false, Ui.text2(this));
+        TextView hint = Ui.text(this, providers.isEmpty()
+                ? "No Poweramp widget found.\nInstall Poweramp (and its widgets), then open this screen again."
+                : "Choose the Poweramp widget. It shows in the dashboard and as a tile in the car's apps.",
+                14, false, Ui.text2(this));
         hint.setPadding(dp(16), dp(16), dp(16), dp(8));
         root.addView(hint);
 
@@ -99,8 +90,7 @@ public final class WidgetSetupActivity extends Activity {
     private void choose(AppWidgetProviderInfo info) {
         dropPending();
         pendingId = host.allocateAppWidgetId();
-        pendingLabel = Widgets.WEATHER.equals(slot) ? Widgets.name(this, info)
-                : String.valueOf(info.loadLabel(getPackageManager()));
+        pendingLabel = String.valueOf(info.loadLabel(getPackageManager()));
         if (AppWidgetManager.getInstance(this).bindAppWidgetIdIfAllowed(pendingId, info.provider)) {
             configure();
         } else {
@@ -123,9 +113,9 @@ public final class WidgetSetupActivity extends Activity {
     }
 
     private void done() {
-        int old = Prefs.widgetId(this, slot);
+        int old = Prefs.widgetId(this, Widgets.MUSIC);
         if (old != -1 && old != pendingId) host.deleteAppWidgetId(old);
-        Prefs.setWidget(this, slot, pendingId, pendingLabel);
+        Prefs.setWidget(this, Widgets.MUSIC, pendingId, pendingLabel);
         pendingId = -1;
         Toast.makeText(this, "Widget saved", Toast.LENGTH_SHORT).show();
         finish();
@@ -188,8 +178,7 @@ public final class WidgetSetupActivity extends Activity {
             Drawable d = info.loadPreviewImage(WidgetSetupActivity.this, 0);
             if (d == null) d = info.loadIcon(WidgetSetupActivity.this, 0);
             r.preview.setImageDrawable(d);
-            r.label.setText(Widgets.WEATHER.equals(slot) ? Widgets.name(WidgetSetupActivity.this, info)
-                    : String.valueOf(info.loadLabel(getPackageManager())));
+            r.label.setText(info.loadLabel(getPackageManager()));
             return v;
         }
     }
