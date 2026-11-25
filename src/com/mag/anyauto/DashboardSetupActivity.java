@@ -1,5 +1,6 @@
 package com.mag.anyauto;
 
+import android.Manifest;
 import android.app.ActionBar;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -10,6 +11,7 @@ import android.content.res.TypedArray;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,19 +19,18 @@ import android.view.WindowInsets;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.List;
 
 /**
- * Sets up the dashboard on the phone: the Poweramp widget, the app that runs live in the middle
- * (the map), and the picture and app of each of the two cards. Everything saves at once;
+ * Sets up the dashboard on the phone: the Poweramp widget, the app that runs live on the left
+ * (the map), and the location the speed and weather cards need. Everything saves at once;
  * {@link DashboardActivity} shows it in the car.
  */
 public final class DashboardSetupActivity extends Activity {
-    private static final int REQ_IMAGE = 10; // + the card's number
+    private static final int REQ_LOCATION = 20;
 
-    private TextView music, map, card1, card2;
+    private TextView music, map, location;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -40,16 +41,15 @@ public final class DashboardSetupActivity extends Activity {
 
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        TextView hint = Ui.text(this, "The dashboard for the car: the Poweramp widget on the left, "
-                + "the live map in the middle, the clock and two cards on the right. "
+        TextView hint = Ui.text(this, "The dashboard for the car: the live map on the left, the clock "
+                + "over the Poweramp widget in the middle, the weather over the speed on the right. "
                 + "Open it from the car's apps.", 14, false, Ui.text2(this));
         hint.setPadding(dp(16), dp(16), dp(16), dp(8));
         list.addView(hint);
 
         music = row(list, "Poweramp widget", v -> pickWidget());
-        map = row(list, "Map (runs live in the middle)", v -> chooseApp(Dash.MAP, true));
-        card1 = row(list, "Card 1", v -> cardMenu(1));
-        card2 = row(list, "Card 2", v -> cardMenu(2));
+        map = row(list, "Map (runs live on the left)", v -> chooseApp());
+        location = row(list, "Location (speed and weather)", v -> askLocation());
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
@@ -107,14 +107,9 @@ public final class DashboardSetupActivity extends Activity {
         ComponentName m = Dash.mapApp(this);
         map.setText(m == null ? "Not chosen (no Google Maps or Waze found)"
                 : appName(m) + (Prefs.dashApp(this, Dash.MAP) == null ? " (automatic)" : ""));
-        card1.setText(cardSummary(1));
-        card2.setText(cardSummary(2));
-    }
-
-    private String cardSummary(int n) {
-        ComponentName app = Prefs.dashApp(this, "card" + n);
-        return (Dash.cardImage(this, n).exists() ? "Picture set" : "No picture")
-                + " · " + (app == null ? "no app" : appName(app));
+        location.setText(Dash.preciseAllowed(this) ? "Allowed"
+                : Dash.locationAllowed(this) ? "Approximate only: the speed needs the precise location. Tap to change."
+                : "Not allowed. Tap to allow: the speed and weather cards need it.");
     }
 
     private String appName(ComponentName cn) {
@@ -130,63 +125,48 @@ public final class DashboardSetupActivity extends Activity {
         startActivity(new Intent(this, WidgetSetupActivity.class));
     }
 
-    /** A card: its picture, its app, or both removed. */
-    private void cardMenu(int n) {
-        String[] items = {"Choose picture", "Choose app", "Remove picture and app"};
-        new AlertDialog.Builder(this)
-                .setTitle("Card " + n)
-                .setItems(items, (d, which) -> {
-                    if (which == 0) {
-                        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT)
-                                .addCategory(Intent.CATEGORY_OPENABLE)
-                                .setType("image/*");
-                        startActivityForResult(pick, REQ_IMAGE + n);
-                    } else if (which == 1) {
-                        chooseApp("card" + n, false);
-                    } else {
-                        Dash.removeCardImage(this, n);
-                        Prefs.setDashApp(this, "card" + n, null);
-                        refresh();
-                    }
-                })
-                .setNegativeButton("Close", null)
-                .show();
+    private void askLocation() {
+        if (Dash.preciseAllowed(this)) return;
+        requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
     }
 
-    /** Every app with a launcher icon; for the navigation tile, also "automatic" (Google Maps, else Waze). */
-    private void chooseApp(String key, boolean automatic) {
+    @Override
+    public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(request, permissions, results);
+        refresh();
+        if (request == REQ_LOCATION && !Dash.preciseAllowed(this)) {
+            // Android stops asking after a refusal or an approximate choice: the app's settings are the way
+            new AlertDialog.Builder(this)
+                    .setTitle("Precise location needed")
+                    .setMessage("The speed card uses the GPS. Open AnyAuto's settings and allow the precise "
+                            + "location while the app is in use.")
+                    .setPositiveButton("Open settings", (d, w) -> startActivity(
+                            new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", getPackageName(), null))))
+                    .setNegativeButton("Close", null)
+                    .show();
+        }
+    }
+
+    /** Every app with a launcher icon, and "automatic" (Google Maps, else Waze). */
+    private void chooseApp() {
         new Thread(() -> {
             List<Apps.App> apps = Apps.launchable(this);
             runOnUiThread(() -> {
-                int offset = automatic ? 1 : 0;
-                String[] labels = new String[apps.size() + offset];
-                if (automatic) labels[0] = "Automatic (Google Maps, else Waze)";
-                for (int i = 0; i < apps.size(); i++) labels[i + offset] = apps.get(i).label;
+                String[] labels = new String[apps.size() + 1];
+                labels[0] = "Automatic (Google Maps, else Waze)";
+                for (int i = 0; i < apps.size(); i++) labels[i + 1] = apps.get(i).label;
                 new AlertDialog.Builder(this)
-                        .setTitle(Dash.MAP.equals(key) ? "Map app" : "Card app")
+                        .setTitle("Map app")
                         .setItems(labels, (d, which) -> {
-                            Prefs.setDashApp(this, key, automatic && which == 0 ? null
-                                    : apps.get(which - offset).component);
+                            Prefs.setDashApp(this, Dash.MAP, which == 0 ? null : apps.get(which - 1).component);
                             refresh();
                         })
                         .setNegativeButton("Close", null)
                         .show();
             });
         }, "anyauto-apps").start();
-    }
-
-    @Override
-    protected void onActivityResult(int request, int result, Intent data) {
-        int n = request - REQ_IMAGE;
-        if ((n != 1 && n != 2) || result != RESULT_OK || data == null || data.getData() == null) return;
-        Uri uri = data.getData();
-        new Thread(() -> {
-            boolean ok = Dash.saveCardImage(this, n, uri);
-            runOnUiThread(() -> {
-                if (!ok) Toast.makeText(this, "Can't read this picture", Toast.LENGTH_SHORT).show();
-                refresh();
-            });
-        }, "anyauto-image").start();
     }
 
     private int dp(float v) {

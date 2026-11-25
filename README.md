@@ -11,7 +11,8 @@ on a car-sized virtual display, draws that display onto the car screen, and send
 taps, drags, flings and pinches back to the app as touches.
 
 It uses [Shizuku](https://shizuku.rikka.app/), so you don't need root or a computer in the
-car. It has no internet permission, no account and no analytics.
+car. It has no account and no analytics. In this fork, internet is used only by the dashboard's
+weather card (see below), and location only by its speed and weather cards.
 
 **[Download the APK](https://github.com/GitMag/AnyAuto/releases/latest)** from the latest release.
 
@@ -98,12 +99,18 @@ the car**.
 to hold it (Android asks once). The widget then comes first in the car's apps grid and fills the
 car screen, with its buttons working by touch.
 
-**Dashboard:** ⋮ → **Dashboard** sets up a dashboard for the car, with three columns: the Poweramp
-widget on the left, a live map in the middle (Google Maps, Waze or the app you choose, running
-beside the other tiles: pan and zoom it by touch, and a route keeps guiding), and the clock over two
-cards on the right. Each card has a picture and the app it starts. Once something is set up, a
-**Dashboard** tile comes first in the car's apps grid. A card starts its app on the car screen, and
-the car's Back returns to the dashboard. The map keeps running when the dashboard is hidden.
+**Dashboard:** a **Dashboard** tile comes first in the car's apps grid. It has three columns, laid
+out like Android Auto's own dashboard:
+
+- **Left:** a live map (Google Maps, Waze or the app you choose in ⋮ → **Dashboard**). Pan and zoom
+  it by touch, and a route keeps guiding. It keeps running when the dashboard is hidden.
+- **Middle:** the clock (violet card, with an analog face) over the Poweramp widget.
+- **Right:** the weather (now, the next three hours, the day's range, the sunset) over the speed.
+
+The speed comes from the phone's GPS and the weather from [Open-Meteo](https://open-meteo.com)
+(free, no account), which is sent the phone's position rounded to about a kilometre. Both need the
+location: ⋮ → **Dashboard** → **Location** asks for it once, and the speed needs the *precise*
+location. The weather card is the only part of AnyAuto that uses the internet.
 
 **Full screen:** the app uses the whole car screen, edge to edge, like Google Maps does (Android
 Auto rounds the corners a little). The buttons float over its top corner until they hide by

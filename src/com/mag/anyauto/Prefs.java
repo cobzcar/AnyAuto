@@ -137,7 +137,7 @@ public final class Prefs {
         p(c).edit().putInt("widget_" + slot + "_id", id).putString("widget_" + slot + "_label", label).apply();
     }
 
-    /** An app of the dashboard: its navigation tile (Dash.MAP) or one of its cards ("card1", "card2"). */
+    /** An app of the dashboard: the map (Dash.MAP). */
     static ComponentName dashApp(Context c, String key) {
         String f = p(c).getString("dash_" + key + "_app", null);
         return f == null ? null : ComponentName.unflattenFromString(f);
@@ -151,10 +151,8 @@ public final class Prefs {
         e.apply();
     }
 
-    /** True once something is set up for the dashboard: its tile then shows in the car's apps. */
+    /** True when the dashboard has something to show: its tile then shows in the car's apps. */
     public static boolean hasDashboard(Context c) {
-        return widgetId(c, Widgets.MUSIC) != -1
-                || dashApp(c, Dash.MAP) != null || dashApp(c, "card1") != null || dashApp(c, "card2") != null
-                || Dash.cardImage(c, 1).exists() || Dash.cardImage(c, 2).exists();
+        return widgetId(c, Widgets.MUSIC) != -1 || Dash.mapApp(c) != null;
     }
 }

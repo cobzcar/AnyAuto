@@ -1,20 +1,22 @@
 package com.mag.anyauto;
 
 import android.app.Activity;
-import android.app.ActivityOptions;
 import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
-import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Outline;
-import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.RemoteException;
-import android.util.TypedValue;
+import android.text.format.DateFormat;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.MotionEvent;
@@ -25,77 +27,125 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.TextClock;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * The dashboard on the car display, three columns: the Poweramp widget on the left, the live map
- * (Google Maps, with its route) in the middle, the clock over two picture cards on the right. It
+ * The dashboard on the car display, laid out like Android Auto's own: the live map on the left,
+ * the clock over the Poweramp widget in the middle, the weather over the speed on the right. It
  * is an ordinary activity: DisplayService starts it on the virtual display, the display draws it
  * into the car, and the car's taps reach it as touches.
  * <p>
  * The map is not a picture of an app: the service makes a second virtual display ("map display",
- * {@link IDisplayService#showMap}) that draws into the {@link SurfaceView} of the middle column,
- * and the map app runs on it. The system composes that surface into this window, so the car sees
- * it with no further work; touches on the surface are passed on to the map display, which makes
- * the map pan and zoom. A card starts its app on this display; Back from that app returns here.
- * Everything is chosen on the phone, in {@link DashboardSetupActivity}. Exported because the
- * shell user starts it (a non-exported activity would be refused).
+ * {@link IDisplayService#showMap}) that draws into the {@link SurfaceView} of the left card, and
+ * the map app runs on it. The system composes that surface into this window, so the car sees it
+ * with no further work; touches on the surface are passed on to the map display, which makes the
+ * map pan and zoom. The speed comes from the phone's GPS, the weather from Open-Meteo for the
+ * phone's position. Everything is chosen on the phone, in {@link DashboardSetupActivity}.
+ * Exported because the shell user starts it (a non-exported activity would be refused).
  */
 public final class DashboardActivity extends Activity {
-    private static final int BG = Color.rgb(12, 13, 17), TILE = Color.rgb(32, 34, 42),
-            TEXT = Color.WHITE, TEXT2 = Color.rgb(170, 176, 188);
+    private static final int TEXT2 = Color.rgb(170, 176, 188);
+    private static final long WEATHER_EVERY_MS = 30 * 60 * 1000L;
 
     private AppWidgetHost host;
-    private FrameLayout musicBox, mapBox, card1Box, card2Box;
+    private FrameLayout musicBox, mapBox;
     private AppWidgetHostView musicView;
     private SurfaceView map;
     private TextView mapNote;
+    private TextView timeText, ampmText, dayText, dateText;
+    private WeatherCard weatherCard;
+    private DashViews.SpeedGauge gauge;
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
     // calls to the display service: slow and blocking, so off the main thread, in order; touches
     // have a queue of their own so a slow launch never holds a finger back
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final ExecutorService touchIo = Executors.newSingleThreadExecutor();
+    private final ExecutorService weatherIo = Executors.newSingleThreadExecutor();
+    private boolean weatherLoading, weatherShown;
+    private boolean locating;
+
+    private final LocationListener locationListener = new LocationListener() {
+        @Override
+        public void onLocationChanged(Location l) {
+            float kmh = l.hasSpeed() ? l.getSpeed() * 3.6f : 0f;
+            gauge.setSpeed(kmh < 1f ? 0f : kmh);
+            // the first fix, when there was no position for the weather yet
+            if (!weatherShown) loadWeather();
+        }
+
+        @Override
+        public void onProviderEnabled(String provider) {
+        }
+
+        @Override
+        public void onProviderDisabled(String provider) {
+            gauge.setSpeed(-1f);
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+        }
+    };
+
+    private final Runnable clockTick = new Runnable() {
+        @Override
+        public void run() {
+            updateClockText();
+            // the next minute, so the time never lags
+            ui.postDelayed(this, 60_000L - System.currentTimeMillis() % 60_000L + 50L);
+        }
+    };
+
+    private final Runnable weatherTick = new Runnable() {
+        @Override
+        public void run() {
+            loadWeather();
+            ui.postDelayed(this, WEATHER_EVERY_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         host = new AppWidgetHost(this, Widgets.HOST_ID);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
-        root.setBackgroundColor(BG);
-        root.setPadding(dp(8), dp(8), dp(8), dp(8));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF0A1B22, 0xFF150F2C}));
+        row.setPadding(dp(10), dp(10), dp(10), dp(10));
 
-        // left: Poweramp, the whole column
-        musicBox = box();
-        LinearLayout left = column();
-        left.addView(musicBox, cell());
-        root.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 3f));
-
-        // middle: the live map
-        mapBox = box();
+        // left: the live map, the whole column
+        mapBox = card(0xFF111418);
         buildMap();
-        LinearLayout middle = column();
-        middle.addView(mapBox, cell());
-        root.addView(middle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 3f));
+        LinearLayout left = column();
+        left.addView(mapBox, cell());
+        row.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 56f));
 
-        // right: the clock over two cards
-        card1Box = box();
-        card2Box = box();
+        // middle: the clock over the Poweramp widget
+        musicBox = card(0xFF26222E);
+        LinearLayout mid = column();
+        mid.addView(clockCard(), cell());
+        mid.addView(musicBox, cell());
+        row.addView(mid, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 27.3f));
+
+        // right: the weather over the speed
+        weatherCard = new WeatherCard(this, radius());
         LinearLayout right = column();
-        right.addView(clock(), cell());
-        right.addView(card1Box, cell());
-        right.addView(card2Box, cell());
-        root.addView(right, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 2.4f));
+        right.addView(weatherCard, cell());
+        right.addView(speedCard(), cell());
+        row.addView(right, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 14.7f));
 
-        setContentView(root);
+        setContentView(row);
 
         // the widget gets the room it has here, so it picks the layout that fits
         musicBox.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or, ob) -> size(musicBox, musicView));
@@ -105,12 +155,18 @@ public final class DashboardActivity extends Activity {
     protected void onStart() {
         super.onStart();
         host.startListening(); // without it the widget never updates
-        show(); // also when coming back from an app: what was changed on the phone shows
+        musicView = placeWidget(musicBox); // also when coming back: what was changed on the phone shows
+        ui.post(clockTick);
+        startLocation();
+        ui.post(weatherTick);
     }
 
     @Override
     protected void onStop() {
         host.stopListening();
+        ui.removeCallbacks(clockTick);
+        ui.removeCallbacks(weatherTick);
+        stopLocation();
         super.onStop();
     }
 
@@ -118,22 +174,8 @@ public final class DashboardActivity extends Activity {
     protected void onDestroy() {
         io.shutdown();
         touchIo.shutdown();
+        weatherIo.shutdown();
         super.onDestroy();
-    }
-
-    private void show() {
-        musicView = placeWidget(musicBox);
-        List<Apps.App> apps = Apps.launchable(this);
-        fillCard(card1Box, find(apps, Prefs.dashApp(this, "card1")), Dash.loadCardImage(this, 1));
-        fillCard(card2Box, find(apps, Prefs.dashApp(this, "card2")), Dash.loadCardImage(this, 2));
-    }
-
-    private static Apps.App find(List<Apps.App> apps, ComponentName cn) {
-        if (cn == null) return null;
-        for (Apps.App a : apps) {
-            if (a.component.equals(cn)) return a;
-        }
-        return null;
     }
 
     // ------------------------------------------------------------------ the live map
@@ -143,7 +185,7 @@ public final class DashboardActivity extends Activity {
         map.setOutlineProvider(new ViewOutlineProvider() {
             @Override
             public void getOutline(View v, Outline o) {
-                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(18));
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius());
             }
         });
         map.setClipToOutline(true);
@@ -268,109 +310,155 @@ public final class DashboardActivity extends Activity {
         v.updateAppWidgetSize(null, w, h, w, h);
     }
 
-    // ------------------------------------------------------------------ the cards
+    // ------------------------------------------------------------------ the clock
 
-    /** A card: the picture or the app's icon, the app's name at the bottom; a tap starts the app. */
-    private void fillCard(FrameLayout box, Apps.App app, Bitmap image) {
-        box.removeAllViews();
-        if (image != null) {
-            ImageView iv = new ImageView(this);
-            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            iv.setImageBitmap(image);
-            box.addView(iv, matchParent());
-        } else if (app != null) {
-            ImageView iv = new ImageView(this);
-            iv.setImageDrawable(app.icon(getPackageManager()));
-            box.addView(iv, new FrameLayout.LayoutParams(dp(72), dp(72), Gravity.CENTER));
-        }
-        if (app != null) {
-            TextView t = Ui.text(this, app.label, 16, true, TEXT);
-            t.setGravity(Gravity.CENTER);
-            t.setSingleLine(true);
-            t.setPadding(dp(8), dp(6), dp(8), dp(6));
-            t.setBackgroundColor(Color.argb(150, 0, 0, 0));
-            box.addView(t, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
-        } else if (image == null) {
-            box.addView(hintView("Card"), matchParent());
-        }
-        ComponentName target = app == null ? null : app.component;
-        box.setOnClickListener(v -> launch(target));
-    }
+    /** The violet clock card: the time and the date on the left, the analog face on the right. */
+    private FrameLayout clockCard() {
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF7A52DC, 0xFF9A6AF0});
+        bg.setCornerRadius(radius());
+        FrameLayout box = new FrameLayout(this);
+        box.setBackground(bg);
+        box.setClipToOutline(true);
 
-    /**
-     * Starts the app on this display through the same service that started the dashboard, so an
-     * app already open on the phone moves here. Without the service, from this activity.
-     */
-    private void launch(ComponentName cn) {
-        if (cn == null) {
-            Toast.makeText(this, "Choose it on the phone: ⋮ → Dashboard", Toast.LENGTH_LONG).show();
-            return;
-        }
-        io.execute(() -> {
-            IDisplayService s = Shell.service();
-            if (s != null) {
-                try {
-                    if ("ok".equals(s.launch(cn))) return;
-                } catch (RemoteException ignore) {
-                    // fall through to the plain start
-                }
+        DashViews.AnalogClock face = new DashViews.AnalogClock(this);
+        box.addView(face, new FrameLayout.LayoutParams(dp(120), dp(120), Gravity.END | Gravity.CENTER_VERTICAL));
+        // the face takes the room it has: under half the card's width, and within its height
+        box.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or, ob) -> {
+            int s = Math.round(Math.min((r - l) * 0.46f, (bt - t) * 0.74f));
+            ViewGroup.LayoutParams lp = face.getLayoutParams();
+            if (s > 0 && lp.width != s) {
+                lp.width = s;
+                lp.height = s;
+                face.setLayoutParams(lp);
             }
-            runOnUiThread(() -> startHere(cn));
         });
-    }
 
-    private void startHere(ComponentName cn) {
-        Intent i = new Intent(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_LAUNCHER)
-                .setComponent(cn)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-        try {
-            int display = getWindowManager().getDefaultDisplay().getDisplayId();
-            startActivity(i, ActivityOptions.makeBasic().setLaunchDisplayId(display).toBundle());
-        } catch (RuntimeException e) {
-            Toast.makeText(this, "Can't open it here", Toast.LENGTH_SHORT).show();
-        }
-    }
+        LinearLayout time = new LinearLayout(this);
+        time.setGravity(Gravity.BOTTOM);
+        timeText = Ui.text(this, "", 34, true, Color.WHITE);
+        timeText.setIncludeFontPadding(false);
+        ampmText = Ui.text(this, "", 13, false, 0xCCFFFFFF);
+        ampmText.setPadding(dp(4), 0, 0, dp(4));
+        time.addView(timeText);
+        time.addView(ampmText);
+        box.addView(time, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START));
+        time.setPadding(dp(18), dp(14), 0, 0);
 
-    // ------------------------------------------------------------------ clock and layout helpers
-
-    /** The time, big, and the date under it; both follow the room they have. */
-    private FrameLayout clock() {
-        FrameLayout box = box();
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setGravity(Gravity.CENTER);
-        col.setPadding(dp(8), dp(4), dp(8), dp(4));
-
-        TextClock time = new TextClock(this);
-        time.setFormat24Hour("HH:mm");
-        time.setFormat12Hour("h:mm a");
-        time.setTextColor(TEXT);
-        time.setTypeface(Typeface.DEFAULT_BOLD);
-        time.setGravity(Gravity.CENTER);
-        time.setMaxLines(1);
-        time.setIncludeFontPadding(false);
-        time.setAutoSizeTextTypeUniformWithConfiguration(16, 80, 2, TypedValue.COMPLEX_UNIT_SP);
-        col.addView(time, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 2f));
-
-        TextClock date = new TextClock(this);
-        date.setFormat24Hour("EEEE d MMMM");
-        date.setFormat12Hour("EEEE d MMMM");
-        date.setTextColor(TEXT2);
-        date.setGravity(Gravity.CENTER);
-        date.setMaxLines(1);
-        date.setAutoSizeTextTypeUniformWithConfiguration(10, 24, 2, TypedValue.COMPLEX_UNIT_SP);
-        col.addView(date, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
-        box.addView(col, matchParent());
+        LinearLayout date = new LinearLayout(this);
+        date.setOrientation(LinearLayout.VERTICAL);
+        dayText = Ui.text(this, "", 14, true, Color.WHITE);
+        dateText = Ui.text(this, "", 12, false, 0xCCFFFFFF);
+        date.addView(dayText);
+        date.addView(dateText);
+        date.setPadding(dp(18), 0, 0, dp(14));
+        box.addView(date, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
+        updateClockText();
         return box;
     }
 
-    /** A rounded tile that clips what it holds (a widget's corners included). */
-    private FrameLayout box() {
+    private void updateClockText() {
+        Date now = new Date();
+        boolean h24 = DateFormat.is24HourFormat(this);
+        Locale l = Locale.getDefault();
+        timeText.setText(new SimpleDateFormat(h24 ? "HH:mm" : "h:mm", l).format(now));
+        ampmText.setText(h24 ? "" : new SimpleDateFormat("a", l).format(now));
+        dayText.setText(capital(new SimpleDateFormat("EEEE", l).format(now)));
+        dateText.setText(capital(new SimpleDateFormat("d MMMM", l).format(now)));
+    }
+
+    private static String capital(String s) {
+        return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    // ------------------------------------------------------------------ the speed
+
+    private FrameLayout speedCard() {
+        FrameLayout box = card(0xFF262A33);
+        gauge = new DashViews.SpeedGauge(this);
+        FrameLayout.LayoutParams lp = matchParent();
+        lp.setMargins(dp(10), dp(10), dp(10), dp(10));
+        box.addView(gauge, lp);
+        return box;
+    }
+
+    private void startLocation() {
+        gauge.setSpeed(-1f);
+        if (!Dash.preciseAllowed(this)) return; // the card shows "--"; the phone's setup asks for it
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm == null) return;
+        try {
+            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, locationListener,
+                    Looper.getMainLooper());
+            locating = true;
+        } catch (SecurityException | IllegalArgumentException e) {
+            locating = false;
+        }
+    }
+
+    private void stopLocation() {
+        if (!locating) return;
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm != null) lm.removeUpdates(locationListener);
+        locating = false;
+    }
+
+    // ------------------------------------------------------------------ the weather
+
+    /** Shows the last answer at once, and fetches a new one when it is old and a position is known. */
+    private void loadWeather() {
+        Weather.Data cached = Weather.cached(this);
+        if (cached != null) {
+            weatherShown = true;
+            weatherCard.show(cached);
+            if (System.currentTimeMillis() - cached.fetched < Weather.FRESH_MS) return;
+        }
+        if (!Dash.locationAllowed(this)) {
+            if (cached == null) {
+                weatherCard.message(Weather.tr("Autorise la localisation sur le téléphone",
+                        "Allow location on the phone"));
+            }
+            return;
+        }
+        Location l = Dash.lastLocation(this);
+        if (l == null) {
+            if (cached == null) weatherCard.message(Weather.tr("En attente du GPS…", "Waiting for the GPS…"));
+            return;
+        }
+        if (weatherLoading) return;
+        weatherLoading = true;
+        double lat = l.getLatitude(), lon = l.getLongitude();
+        weatherIo.execute(() -> {
+            try {
+                String json = Weather.fetch(lat, lon);
+                Weather.Data d = Weather.parse(json);
+                Weather.save(this, json);
+                runOnUiThread(() -> {
+                    weatherLoading = false;
+                    weatherShown = true;
+                    weatherCard.show(d);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    weatherLoading = false;
+                    if (!weatherShown) weatherCard.message(Weather.tr("Météo indisponible", "Weather unavailable"));
+                });
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------ layout helpers
+
+    private int radius() {
+        return dp(26);
+    }
+
+    /** A rounded card that clips what it holds (a widget's corners included). */
+    private FrameLayout card(int color) {
         FrameLayout f = new FrameLayout(this);
-        f.setBackground(Ui.round(TILE, dp(18)));
+        f.setBackground(Ui.round(color, radius()));
         f.setClipToOutline(true);
         return f;
     }
@@ -384,7 +472,7 @@ public final class DashboardActivity extends Activity {
     private LinearLayout.LayoutParams cell() {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        lp.setMargins(dp(4), dp(4), dp(4), dp(4));
+        lp.setMargins(dp(5), dp(5), dp(5), dp(5));
         return lp;
     }
 

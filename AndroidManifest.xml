@@ -12,6 +12,10 @@
     <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
     <!-- bind DisplayService as the shell user through Shizuku -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <!-- the dashboard's weather card (Open-Meteo, Weather.java) and speed card (GPS) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <queries>
         <!-- the apps that can be put in the car: everything with a launcher icon -->
@@ -93,7 +97,7 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
-        <!-- the dashboard for the car (Poweramp, live map, clock, two cards):
+        <!-- the dashboard for the car (live map, clock, Poweramp, weather, speed):
              set up on the phone (DashboardSetupActivity), shown on the car display
              (DashboardActivity, started by the shell user like the widget above) -->
         <activity

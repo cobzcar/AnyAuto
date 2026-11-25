@@ -100,8 +100,9 @@ MUST="androidx.car.app.CarAppService androidx.car.app.category.NAVIGATION
       androidx.car.app.NAVIGATION_TEMPLATES androidx.car.app.ACCESS_SURFACE androidx.car.app.minCarApiLevel
       com.google.android.gms.car.application rikka.shizuku.ShizukuProvider
       moe.shizuku.manager.permission.API_V23 com.mag.anyauto.PreviewActivity"
-# no routing: "navigate to" requests stay with Google Maps
-MUST_NOT="androidx.car.app.action.NAVIGATE androidx.car.app.category.FEATURE_CLUSTER android.permission.INTERNET"
+# no routing: "navigate to" requests stay with Google Maps. (INTERNET is allowed in this fork: the
+# dashboard's weather card needs it.)
+MUST_NOT="androidx.car.app.action.NAVIGATE androidx.car.app.category.FEATURE_CLUSTER"
 for m in $MUST; do
     grep -q "$m" build/manifest.txt || { echo "missing from the merged manifest: $m" >&2; exit 1; }
 done
