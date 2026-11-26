@@ -35,8 +35,8 @@ import java.util.List;
  * media session (Poweramp first), so it needs Notification access ({@link MediaListener}). When
  * it has nothing to show it hides itself and the Poweramp widget under it shows instead.
  * <p>
- * The buttons can be your own pictures: put transparent PNGs named btn_prev, btn_play,
- * btn_pause and btn_next in res/drawable (any of them; the others stay drawn).
+ * The buttons are pictures from res/drawable when they exist: btn_prev, btn_next, and btn_pill
+ * (the empty play/pause pill; the symbol is drawn on it). Any missing one is drawn instead.
  */
 final class MusicCard extends FrameLayout {
     private static final String POWERAMP = "com.maxmpz.audioplayer";
@@ -112,10 +112,10 @@ final class MusicCard extends FrameLayout {
         LinearLayout buttons = new LinearLayout(c);
         buttons.setGravity(Gravity.CENTER);
         prev = new Btn(c, Btn.PREV, "btn_prev");
-        play = new Btn(c, Btn.PLAY, "btn_play");
+        play = new Btn(c, Btn.PLAY, "btn_pill");
         next = new Btn(c, Btn.NEXT, "btn_next");
         for (Btn b : new Btn[]{prev, play, next}) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), b == play ? 1.7f : 1f);
             lp.setMargins(dp(3), 0, dp(3), 0);
             buttons.addView(b, lp);
         }
@@ -326,7 +326,7 @@ final class MusicCard extends FrameLayout {
         private final Path path = new Path();
         private final int kind;
         private final String name;
-        private Drawable image, imagePause;
+        private Drawable image;
         boolean playing;
 
         Btn(Context c, int kind, String name) {
@@ -334,7 +334,7 @@ final class MusicCard extends FrameLayout {
             this.kind = kind;
             this.name = name;
             image = load(name);
-            if (kind == PLAY) imagePause = load("btn_pause");
+
         }
 
         private Drawable load(String n) {
@@ -349,18 +349,20 @@ final class MusicCard extends FrameLayout {
         @Override
         protected void onDraw(Canvas cv) {
             float w = getWidth(), h = getHeight();
-            Drawable d = kind == PLAY && playing && imagePause != null ? imagePause : image;
-            if (d != null) {
-                float s = Math.min(w, h);
-                int l = Math.round((w - s) / 2f), t = Math.round((h - s) / 2f);
-                d.setBounds(l, t, l + Math.round(s), t + Math.round(s));
-                d.draw(cv);
-                return;
+            if (image != null) {
+                float s = kind == PLAY ? 0f : Math.min(w, h);
+                int l = kind == PLAY ? 0 : Math.round((w - s) / 2f), t = kind == PLAY ? 0 : Math.round((h - s) / 2f);
+                image.setBounds(l, t, kind == PLAY ? Math.round(w) : l + Math.round(s),
+                        kind == PLAY ? Math.round(h) : t + Math.round(s));
+                image.draw(cv);
+                if (kind != PLAY) return;
             }
             float r = Math.min(w, h) / 2f, cx = w / 2f, cy = h / 2f;
             p.setStyle(Paint.Style.FILL);
-            p.setColor(0x40FFFFFF);
-            cv.drawRoundRect(cx - w / 2f, cy - r, cx + w / 2f, cy + r, r, r, p);
+            if (image == null) {
+                p.setColor(0x40FFFFFF);
+                cv.drawRoundRect(cx - w / 2f, cy - r, cx + w / 2f, cy + r, r, r, p);
+            }
             p.setColor(Color.WHITE);
             float u = r * 0.42f;
             path.reset();
