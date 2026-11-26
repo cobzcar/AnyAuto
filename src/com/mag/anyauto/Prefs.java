@@ -151,6 +151,20 @@ public final class Prefs {
         e.apply();
     }
 
+    /** The distance driven since the car session started, in metres (under the speed on the dashboard). */
+    static float tripMeters(Context c) {
+        return p(c).getFloat("trip_m", 0f);
+    }
+
+    static void setTripMeters(Context c, float meters) {
+        p(c).edit().putFloat("trip_m", meters).apply();
+    }
+
+    /** A new car session starts: the distance driven goes back to zero. */
+    public static void resetTrip(Context c) {
+        setTripMeters(c, 0f);
+    }
+
     /** True when the dashboard has something to show: its tile then shows in the car's apps. */
     public static boolean hasDashboard(Context c) {
         return widgetId(c, Widgets.MUSIC) != -1 || Dash.mapApp(c) != null;

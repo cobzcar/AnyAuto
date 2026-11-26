@@ -15,12 +15,32 @@ final class DashViews {
     private DashViews() {
     }
 
-    /** The clock card's face: a soft-lobed disc, twelve dots (a pink one marks the seconds) and two hands. */
+    /**
+     * The clock card's face: a soft-lobed disc a little lighter than the card, twelve dots (a blue
+     * one marks the seconds) and two thick white hands. Made to be big, and cut by the card's edge.
+     */
     static final class AnalogClock extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path body = new Path();
+        private final Path lobe = new Path();
 
         AnalogClock(Context c) {
             super(c);
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int ow, int oh) {
+            float r = Math.min(w, h) / 2f, cx = w / 2f, cy = h / 2f;
+            float d = r * 0.80f, lr = r * 0.20f;
+            // one shape, so the see-through fill has no darker overlaps
+            body.reset();
+            body.addCircle(cx, cy, d, Path.Direction.CW);
+            for (int i = 0; i < 12; i++) {
+                double a = Math.toRadians(i * 30);
+                lobe.reset();
+                lobe.addCircle(cx + (float) Math.sin(a) * d, cy - (float) Math.cos(a) * d, lr, Path.Direction.CW);
+                body.op(lobe, Path.Op.UNION);
+            }
         }
 
         @Override
@@ -29,35 +49,30 @@ final class DashViews {
             float r = Math.min(w, h) / 2f, cx = w / 2f, cy = h / 2f;
 
             p.setStyle(Paint.Style.FILL);
-            p.setColor(0xFF5B3AB8);
-            float d = r * 0.76f, lobe = r * 0.22f;
-            cv.drawCircle(cx, cy, d, p);
-            for (int i = 0; i < 12; i++) {
-                double a = Math.toRadians(i * 30);
-                cv.drawCircle(cx + (float) Math.sin(a) * d, cy - (float) Math.cos(a) * d, lobe, p);
-            }
+            p.setColor(0x26FFFFFF);
+            cv.drawPath(body, p);
 
             Calendar t = Calendar.getInstance();
             float sec = t.get(Calendar.SECOND);
             float min = t.get(Calendar.MINUTE) + sec / 60f;
             float hr = t.get(Calendar.HOUR) + min / 60f; // Calendar.HOUR is 0 to 11
 
-            float ring = r * 0.68f;
-            p.setColor(0xCCFFFFFF);
+            float ring = r * 0.70f;
+            p.setColor(0x99FFFFFF);
             for (int i = 0; i < 12; i++) {
                 double a = Math.toRadians(i * 30);
-                cv.drawCircle(cx + (float) Math.sin(a) * ring, cy - (float) Math.cos(a) * ring, r * 0.032f, p);
+                cv.drawCircle(cx + (float) Math.sin(a) * ring, cy - (float) Math.cos(a) * ring, r * 0.035f, p);
             }
-            p.setColor(0xFFFF8FA8);
+            p.setColor(0xFF4DA3FF);
             double sa = Math.toRadians(sec * 6);
-            cv.drawCircle(cx + (float) Math.sin(sa) * ring, cy - (float) Math.cos(sa) * ring, r * 0.055f, p);
+            cv.drawCircle(cx + (float) Math.sin(sa) * ring, cy - (float) Math.cos(sa) * ring, r * 0.065f, p);
 
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeCap(Paint.Cap.ROUND);
-            p.setStrokeWidth(r * 0.11f);
-            p.setColor(0xFFEFE3FF);
-            hand(cv, cx, cy, hr * 30f, r * 0.10f, r * 0.34f);
-            hand(cv, cx, cy, min * 6f, r * 0.10f, r * 0.54f);
+            p.setStrokeWidth(r * 0.12f);
+            p.setColor(0xFFFFFFFF);
+            hand(cv, cx, cy, hr * 30f, r * 0.10f, r * 0.38f);
+            hand(cv, cx, cy, min * 6f, r * 0.10f, r * 0.60f);
 
             postInvalidateDelayed(1000);
         }
@@ -69,7 +84,7 @@ final class DashViews {
         }
     }
 
-    /** The speed card: a 270 degree ring that fills with the speed, the number and "km/h" inside. */
+    /** The speed card: a 270 degree ring (in the accent colour) that fills with the speed, the number and "km/h" inside. */
     static final class SpeedGauge extends View {
         private static final float MAX = 180f; // km/h at a full ring
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -99,7 +114,7 @@ final class DashViews {
             p.setColor(0x26FFFFFF);
             cv.drawArc(rect, 135, 270, false, p);
             if (kmh > 0) {
-                p.setColor(0xFF8FE9D6);
+                p.setColor(Dash.ACCENT);
                 cv.drawArc(rect, 135, 270f * Math.min(1f, kmh / MAX), false, p);
             }
 

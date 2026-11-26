@@ -30,6 +30,7 @@ public final class AnySession extends Session {
     public Screen onCreateScreen(@NonNull Intent intent) {
         CarContext c = getCarContext();
         Shell.init(c);
+        Prefs.resetTrip(c); // the dashboard's distance counts from each start of the car
         mirror = new Mirror(c, () -> {
             if (screen != null) screen.invalidate();
         }, true);

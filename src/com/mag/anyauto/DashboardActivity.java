@@ -62,6 +62,12 @@ public final class DashboardActivity extends Activity {
     private TextView timeText, ampmText, dayText, dateText;
     private WeatherCard weatherCard;
     private DashViews.SpeedGauge gauge;
+    private TextView tripText;
+    // the distance driven since the car session started (Prefs.resetTrip), counted while the
+    // dashboard is on the car screen; saved now and then so it outlives the activity
+    private float tripMeters;
+    private Location prevFix;
+    private long lastTripSave;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     // calls to the display service: slow and blocking, so off the main thread, in order; touches
@@ -77,6 +83,18 @@ public final class DashboardActivity extends Activity {
         public void onLocationChanged(Location l) {
             float kmh = l.hasSpeed() ? l.getSpeed() * 3.6f : 0f;
             gauge.setSpeed(kmh < 1f ? 0f : kmh);
+            // the distance: only fixes that are precise and moving, and no jump from a lost signal
+            if (prevFix != null && l.hasAccuracy() && l.getAccuracy() <= 40f && kmh >= 3f) {
+                float d = prevFix.distanceTo(l);
+                if (d > 1f && d < 300f) tripMeters += d;
+            }
+            prevFix = l;
+            tripText.setText(tripLabel());
+            long now = System.currentTimeMillis();
+            if (now - lastTripSave > 10_000L) {
+                lastTripSave = now;
+                Prefs.setTripMeters(DashboardActivity.this, tripMeters);
+            }
             // the first fix, when there was no position for the weather yet
             if (!weatherShown) loadWeather();
         }
@@ -120,8 +138,7 @@ public final class DashboardActivity extends Activity {
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFF0A1B22, 0xFF150F2C}));
+        row.setBackgroundColor(Color.BLACK);
         row.setPadding(dp(10), dp(10), dp(10), dp(10));
 
         // left: the live map, the whole column
@@ -157,6 +174,9 @@ public final class DashboardActivity extends Activity {
         host.startListening(); // without it the widget never updates
         musicView = placeWidget(musicBox); // also when coming back: what was changed on the phone shows
         ui.post(clockTick);
+        tripMeters = Prefs.tripMeters(this);
+        prevFix = null; // nothing was counted while the dashboard was away
+        tripText.setText(tripLabel());
         startLocation();
         ui.post(weatherTick);
     }
@@ -167,6 +187,7 @@ public final class DashboardActivity extends Activity {
         ui.removeCallbacks(clockTick);
         ui.removeCallbacks(weatherTick);
         stopLocation();
+        Prefs.setTripMeters(this, tripMeters);
         super.onStop();
     }
 
@@ -315,7 +336,7 @@ public final class DashboardActivity extends Activity {
     /** The violet clock card: the time and the date on the left, the analog face on the right. */
     private FrameLayout clockCard() {
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFF7A52DC, 0xFF9A6AF0});
+                new int[]{Dash.CLOCK_FROM, Dash.CLOCK_TO});
         bg.setCornerRadius(radius());
         FrameLayout box = new FrameLayout(this);
         box.setBackground(bg);
@@ -323,20 +344,22 @@ public final class DashboardActivity extends Activity {
 
         DashViews.AnalogClock face = new DashViews.AnalogClock(this);
         box.addView(face, new FrameLayout.LayoutParams(dp(120), dp(120), Gravity.END | Gravity.CENTER_VERTICAL));
-        // the face takes the room it has: under half the card's width, and within its height
+        // a big face: nearly the card's width, a little taller than the card, and pushed past its
+        // right edge so the card cuts it, as on Android Auto's own clock
         box.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or, ob) -> {
-            int s = Math.round(Math.min((r - l) * 0.46f, (bt - t) * 0.74f));
-            ViewGroup.LayoutParams lp = face.getLayoutParams();
+            int s = Math.round(Math.min((r - l) * 0.95f, (bt - t) * 1.12f));
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) face.getLayoutParams();
             if (s > 0 && lp.width != s) {
                 lp.width = s;
                 lp.height = s;
+                lp.rightMargin = -Math.round(s * 0.14f);
                 face.setLayoutParams(lp);
             }
         });
 
         LinearLayout time = new LinearLayout(this);
         time.setGravity(Gravity.BOTTOM);
-        timeText = Ui.text(this, "", 34, true, Color.WHITE);
+        timeText = Ui.text(this, "", 40, true, Color.WHITE);
         timeText.setIncludeFontPadding(false);
         ampmText = Ui.text(this, "", 13, false, 0xCCFFFFFF);
         ampmText.setPadding(dp(4), 0, 0, dp(4));
@@ -375,13 +398,26 @@ public final class DashboardActivity extends Activity {
 
     // ------------------------------------------------------------------ the speed
 
+    /** The speed ring, and under it the distance driven since the car started. */
     private FrameLayout speedCard() {
-        FrameLayout box = card(0xFF262A33);
+        FrameLayout box = card(0xFF1B1D22);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(10), dp(10), dp(10), dp(12));
         gauge = new DashViews.SpeedGauge(this);
-        FrameLayout.LayoutParams lp = matchParent();
-        lp.setMargins(dp(10), dp(10), dp(10), dp(10));
-        box.addView(gauge, lp);
+        col.addView(gauge, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        tripText = Ui.text(this, "", 13, false, 0xCCFFFFFF);
+        tripText.setGravity(Gravity.CENTER);
+        tripText.setSingleLine(true);
+        col.addView(tripText, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        box.addView(col, matchParent());
+        tripText.setText(tripLabel());
         return box;
+    }
+
+    private String tripLabel() {
+        return String.format(Locale.getDefault(), "%.1f km", tripMeters / 1000f);
     }
 
     private void startLocation() {

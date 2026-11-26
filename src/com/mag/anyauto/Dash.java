@@ -12,6 +12,11 @@ import android.location.LocationManager;
 final class Dash {
     /** The key of the map app in {@link Prefs#dashApp}. */
     static final String MAP = "map";
+    /**
+     * The dashboard's accent colours, red to go with the car's lighting: the clock card's gradient
+     * and the speed ring. Change them here.
+     */
+    static final int ACCENT = 0xFFD7263D, CLOCK_FROM = 0xFFF05A75, CLOCK_TO = 0xFFC4203B;
 
     private Dash() {
     }
