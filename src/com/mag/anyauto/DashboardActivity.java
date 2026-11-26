@@ -57,6 +57,7 @@ public final class DashboardActivity extends Activity {
     private AppWidgetHost host;
     private FrameLayout musicBox, mapBox;
     private AppWidgetHostView musicView;
+    private MusicCard musicCard;
     private SurfaceView map;
     private TextView mapNote;
     private TextView timeText, ampmText, dayText, dateText;
@@ -173,6 +174,10 @@ public final class DashboardActivity extends Activity {
         super.onStart();
         host.startListening(); // without it the widget never updates
         musicView = placeWidget(musicBox); // also when coming back: what was changed on the phone shows
+        // our own card on top of the widget: it shows only while a player has something to show
+        if (musicCard == null) musicCard = new MusicCard(this);
+        musicBox.addView(musicCard, matchParent());
+        musicCard.start();
         ui.post(clockTick);
         tripMeters = Prefs.tripMeters(this);
         prevFix = null; // nothing was counted while the dashboard was away
@@ -184,6 +189,7 @@ public final class DashboardActivity extends Activity {
     @Override
     protected void onStop() {
         host.stopListening();
+        if (musicCard != null) musicCard.stop();
         ui.removeCallbacks(clockTick);
         ui.removeCallbacks(weatherTick);
         stopLocation();

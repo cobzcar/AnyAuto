@@ -112,6 +112,17 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
+        <!-- Notification access lets the dashboard's music card read the playing track (MediaListener) -->
+        <service
+            android:name=".MediaListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- the car screen simulated on the phone: same display, launch and gesture path as the car -->
         <activity
             android:name=".PreviewActivity"

@@ -105,6 +105,10 @@ out like Android Auto's own dashboard:
 - **Left:** a live map (Google Maps, Waze or the app you choose in ⋮ → **Dashboard**). Pan and zoom
   it by touch, and a route keeps guiding. It keeps running when the dashboard is hidden.
 - **Middle:** the clock (violet card, with an analog face) over the Poweramp widget.
+  Under it, a native music card (full cover, title, artist, wavy progress line, glass buttons)
+  follows Poweramp's playing track. It needs ⋮ → Dashboard → *Music card* → Notification access;
+  without it the Poweramp widget shows. To use your own buttons, add transparent PNGs named
+  `btn_prev.png`, `btn_play.png`, `btn_pause.png`, `btn_next.png` to `res/drawable`.
 - **Right:** the weather (now, the next three hours, the day's range, the sunset) over the speed.
 
 The speed comes from the phone's GPS and the weather from [Open-Meteo](https://open-meteo.com)

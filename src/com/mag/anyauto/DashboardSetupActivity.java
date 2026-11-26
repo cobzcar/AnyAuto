@@ -30,7 +30,7 @@ import java.util.List;
 public final class DashboardSetupActivity extends Activity {
     private static final int REQ_LOCATION = 20;
 
-    private TextView music, map, location;
+    private TextView music, cover, map, location;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -48,6 +48,8 @@ public final class DashboardSetupActivity extends Activity {
         list.addView(hint);
 
         music = row(list, "Poweramp widget", v -> pickWidget());
+        cover = row(list, "Music card (cover, title, buttons)", v -> startActivity(
+                new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
         map = row(list, "Map (runs live on the left)", v -> chooseApp());
         location = row(list, "Location (speed and weather)", v -> askLocation());
 
@@ -104,6 +106,8 @@ public final class DashboardSetupActivity extends Activity {
     private void refresh() {
         music.setText(Prefs.widgetId(this, Widgets.MUSIC) == -1 ? "Not chosen"
                 : Prefs.widgetLabel(this, Widgets.MUSIC));
+        cover.setText(MusicCard.allowed(this) ? "On: shows the playing track (Poweramp first)"
+                : "Off. Tap, then allow AnyAuto under Notification access. Until then the Poweramp widget shows.");
         ComponentName m = Dash.mapApp(this);
         map.setText(m == null ? "Not chosen (no Google Maps or Waze found)"
                 : appName(m) + (Prefs.dashApp(this, Dash.MAP) == null ? " (automatic)" : ""));
